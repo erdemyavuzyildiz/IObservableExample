@@ -1,0 +1,25 @@
+**/$tf
+
+# Build results
+**/bin/[Dd]ebug/
+**/bin/[Dd]ebugPublic/
+**/bin/[Rr]elease/
+**/bin
+x64/
+build/
+bld/
+**/.vs
+**/packages
+*.user
+*.suo
+**/obj
+*.pdb
+*.vssscc
+
+*.suo
+
+*.user
+
+*.scc
+
+*.vspscc

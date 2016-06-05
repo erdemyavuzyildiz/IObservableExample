@@ -1,1 +1,2 @@
 c:\users\erdem\documents\visual studio 2015\Projects\ConsoleApplication21\bin\Debug\ConsoleApplication21.exe.config
+H:\Desktop\GitRepos\IObservableExample\ConsoleApplication21\bin\Debug\ConsoleApplication21.exe.config
