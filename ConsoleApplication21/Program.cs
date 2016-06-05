@@ -7,174 +7,131 @@ namespace ConsoleApplication21
 	{
 		private static void Main(string[] args)
 		{
-			var locationReporter = new LocationReporter("user1");
+			// Define a provider and two observers.
+			var provider = new LocationTracker();
+			var reporter1 = new LocationReporter("FixedGPS");
+			reporter1.Subscribe(provider);
+			var reporter2 = new LocationReporter("MobileGPS");
+			reporter2.Subscribe(provider);
 
-
-			var locationTracker = new LocationTracker();
-			var disposable= locationReporter.Subscribe(locationTracker);
-
+			provider.TrackLocation(new Location(47.6456, -122.1312));
+			reporter1.Unsubscribe();
+			provider.TrackLocation(new Location(47.6677, -122.1199));
+			provider.TrackLocation(null);
+			provider.EndTransmission();
 		}
-	}
-
-	public class SportNewsSubject : IObservable<SportNews>
-	{
-		private readonly List<IObserver<SportNews>> observers = new List<IObserver<SportNews>>();
-
-		public IDisposable Subscribe(IObserver<SportNews> observer)
-		{
-			observers.Add(observer);
-			return null;
-		}
-
-		//SomethingHappened
-		public void Broadcast()
-		{
-			var sportNews = new SportNews();
-
-			observers.ForEach(y => y.OnNext(sportNews));
-			observers.ForEach(y => y.OnCompleted());
-		}
-	}
-
-	public class SportNewsObserver : IObserver<SportNews>
-	{
-		public void OnNext(SportNews value)
-		{
-			throw new NotImplementedException();
-		}
-
-		public void OnError(Exception error)
-		{
-			throw new NotImplementedException();
-		}
-
-		public void OnCompleted()
-		{
-			throw new NotImplementedException();
-		}
-	}
-
-	public class SportNews
-	{
 	}
 
 	public struct Location
-{
-   double lat, lon;
+	{
+		public Location(double latitude, double longitude)
+		{
+			Latitude = latitude;
+			Longitude = longitude;
+		}
 
-   public Location(double latitude, double longitude)
-   {
-      this.lat = latitude;
-      this.lon = longitude;
-   }
+		public double Latitude { get; }
+		public double Longitude { get; }
+	}
 
-   public double Latitude
-   { get { return this.lat; } }
+	public class LocationTracker : IObservable<Location>
+	{
+		private readonly List<IObserver<Location>> observers;
 
-   public double Longitude
-   { get { return this.lon; } }
-}
+		public LocationTracker()
+		{
+			observers = new List<IObserver<Location>>();
+		}
 
+		public IDisposable Subscribe(IObserver<Location> observer)
+		{
+			if (!observers.Contains(observer))
+				observers.Add(observer);
+			return new Unsubscriber(observers, observer);
+		}
 
-public class LocationTracker : IObservable<Location>
-{
-   public LocationTracker()
-   {
-      observers = new List<IObserver<Location>>();
-   }
+		public void TrackLocation(Location? loc)
+		{
+			foreach (var observer in observers)
+			{
+				if (!loc.HasValue)
+					observer.OnError(new LocationUnknownException());
+				else
+					observer.OnNext(loc.Value);
+			}
+		}
 
-   private List<IObserver<Location>> observers;
+		public void EndTransmission()
+		{
+			foreach (var observer in observers.ToArray())
+				if (observers.Contains(observer))
+					observer.OnCompleted();
 
-   public IDisposable Subscribe(IObserver<Location> observer) 
-   {
-      if (! observers.Contains(observer)) 
-         observers.Add(observer);
-      return new Unsubscriber(observers, observer);
-   }
+			observers.Clear();
+		}
 
-   private class Unsubscriber : IDisposable
-   {
-      private List<IObserver<Location>>_observers;
-      private IObserver<Location> _observer;
+		private class Unsubscriber : IDisposable
+		{
+			private readonly IObserver<Location> _observer;
+			private readonly List<IObserver<Location>> _observers;
 
-      public Unsubscriber(List<IObserver<Location>> observers, IObserver<Location> observer)
-      {
-         this._observers = observers;
-         this._observer = observer;
-      }
+			public Unsubscriber(List<IObserver<Location>> observers, IObserver<Location> observer)
+			{
+				_observers = observers;
+				_observer = observer;
+			}
 
-      public void Dispose()
-      {
-         if (_observer != null && _observers.Contains(_observer))
-            _observers.Remove(_observer);
-      }
-   }
+			public void Dispose()
+			{
+				if (_observer != null && _observers.Contains(_observer))
+					_observers.Remove(_observer);
+			}
+		}
+	}
 
-   public void TrackLocation(Nullable<Location> loc)
-   {
-      foreach (var observer in observers) {
-         if (! loc.HasValue)
-            observer.OnError(new LocationUnknownException());
-         else
-            observer.OnNext(loc.Value);
-      }
-   }
+	public class LocationUnknownException : Exception
+	{
+		internal LocationUnknownException()
+		{
+		}
+	}
 
-   public void EndTransmission()
-   {
-      foreach (var observer in observers.ToArray())
-         if (observers.Contains(observer))
-            observer.OnCompleted();
+	public class LocationReporter : IObserver<Location>
+	{
+		private IDisposable unsubscriber;
 
-      observers.Clear();
-   }
-}
+		public LocationReporter(string name)
+		{
+			Name = name;
+		}
 
-public class LocationUnknownException : Exception
-{
-   internal LocationUnknownException() 
-   { }
-}
+		public string Name { get; }
 
+		public virtual void OnCompleted()
+		{
+			Console.WriteLine("The Location Tracker has completed transmitting data to {0}.", Name);
+			Unsubscribe();
+		}
 
-public class LocationReporter : IObserver<Location>
-{
-   private IDisposable unsubscriber;
-   private string instName;
+		public virtual void OnError(Exception e)
+		{
+			Console.WriteLine("{0}: The location cannot be determined.", Name);
+		}
 
-   public LocationReporter(string name)
-   {
-      this.instName = name;
-   }
+		public virtual void OnNext(Location value)
+		{
+			Console.WriteLine("{2}: The current location is {0}, {1}", value.Latitude, value.Longitude, Name);
+		}
 
-   public string Name
-   {  get{ return this.instName; } }
+		public virtual void Subscribe(IObservable<Location> provider)
+		{
+			if (provider != null)
+				unsubscriber = provider.Subscribe(this);
+		}
 
-   public virtual void Subscribe(IObservable<Location> provider)
-   {
-      if (provider != null) 
-         unsubscriber = provider.Subscribe(this);
-   }
-
-   public virtual void OnCompleted()
-   {
-      Console.WriteLine("The Location Tracker has completed transmitting data to {0}.", this.Name);
-      this.Unsubscribe();
-   }
-
-   public virtual void OnError(Exception e)
-   {
-      Console.WriteLine("{0}: The location cannot be determined.", this.Name);
-   }
-
-   public virtual void OnNext(Location value)
-   {
-      Console.WriteLine("{2}: The current location is {0}, {1}", value.Latitude, value.Longitude, this.Name);
-   }
-
-   public virtual void Unsubscribe()
-   {
-      unsubscriber.Dispose();
-   }
-}
+		public virtual void Unsubscribe()
+		{
+			unsubscriber.Dispose();
+		}
+	}
 }
